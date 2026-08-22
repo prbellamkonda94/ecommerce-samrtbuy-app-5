@@ -38,3 +38,7 @@ Requires `DATABASE_URL` (Neon Postgres connection string) and optional `PORT` (d
 **Orders:** `POST /api/orders` (`server/routes/orders.js`) re-validates and re-prices items server-side from the DB (never trusts client-submitted prices), clamps quantity to available stock, computes shipping (free over $50, else $5.99), and generates order IDs as `ORD-<base36 timestamp>`. Orders and order items are separate tables (`orders`, `order_items`), joined and reshaped into a nested `items[]` array in API responses.
 
 **Routing:** all pages render inside a shared `Layout` (`src/components/Layout.jsx`) via a wrapping `Route` in `src/App.jsx`.
+
+## Deployment
+
+Deployed on Render as a single Web Service, defined by `render.yaml` (Blueprint): build command `npm install && npm run build`, start command `npm start`. This relies on the single-artifact serving behavior in `server/index.js` (API + static frontend from one Express process, one Node service — no separate static site). `DATABASE_URL` is set directly on the Render service (not in `render.yaml`, which only marks it `sync: false`); production reuses the same Neon database as local dev. Pushing to `main` auto-deploys.
