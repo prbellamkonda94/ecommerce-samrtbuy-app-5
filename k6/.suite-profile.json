@@ -1,0 +1,13 @@
+{
+  "profile": "express-postgres-no-auth",
+  "backendDir": "",
+  "backendStartCmd": "node server/index.js",
+  "backendPortDefault": 3001,
+  "backendTestPort": 8833,
+  "healthPath": "/api/health",
+  "dbEnvVar": "DATABASE_URL",
+  "authMode": "none",
+  "coreReadEndpoints": ["/api/products", "/api/products/{id}"],
+  "coreWriteEndpoint": "/api/orders",
+  "notes": "SmartBuy is a guest-checkout demo (no auth) -- see CLAUDE.md. Not exactly stack-detection.md's Profile B (that assumes Better Auth session cookies); adapted with authMode: none. DB prep reuses the app's own server/seed.js against the test DATABASE_URL (idempotent CREATE TABLE IF NOT EXISTS + upsert), same pattern as e2e/global-setup.ts -- no SQLAlchemy reset script applies here. backendTestPort 8833 chosen to avoid colliding with e2e's isolated backend (8811) and security's dynamic-scan target (8822)."
+}

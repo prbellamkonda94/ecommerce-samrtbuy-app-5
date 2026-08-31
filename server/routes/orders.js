@@ -4,7 +4,8 @@ import { sql } from '../db.js';
 const router = Router();
 
 function generateOrderId() {
-  return `ORD-${Date.now().toString(36).toUpperCase()}`;
+  const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `ORD-${Date.now().toString(36).toUpperCase()}-${random}`;
 }
 
 function formatOrder(order, items) {

@@ -1,0 +1,3 @@
+.env.k6
+.tmp/
+reports/

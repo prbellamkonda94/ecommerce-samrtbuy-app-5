@@ -16,7 +16,7 @@ SmartBuy — a React + Express e-commerce demo app (product catalog, cart, check
 - `npm run lint` — Oxlint (see `.oxlintrc.json`). There is no test suite in this repo.
 - `npm run preview` — preview a production build via Vite.
 
-There is no dedicated single-test command since there is no test runner configured.
+There is no dedicated single-test command since there is no test runner configured for the frontend/API. A separate Playwright E2E suite exists in `e2e/` (own `package.json`, not a workspace) — see below.
 
 ## Environment
 
@@ -35,9 +35,44 @@ Requires `DATABASE_URL` (Neon Postgres connection string) and optional `PORT` (d
 - `ProductsContext` fetches the full product list once on mount and exposes `getProductById`.
 - `CartContext` persists cart items (`{ productId, qty }`) to `localStorage` via the generic `useLocalStorage` hook, and derives `cartDetails`/`subtotal`/`itemCount` by joining against `ProductsContext`. Cart items only store `productId` + `qty`, never denormalized product data.
 
-**Orders:** `POST /api/orders` (`server/routes/orders.js`) re-validates and re-prices items server-side from the DB (never trusts client-submitted prices), clamps quantity to available stock, computes shipping (free over $50, else $5.99), and generates order IDs as `ORD-<base36 timestamp>`. Orders and order items are separate tables (`orders`, `order_items`), joined and reshaped into a nested `items[]` array in API responses.
+**Orders:** `POST /api/orders` (`server/routes/orders.js`) re-validates and re-prices items server-side from the DB (never trusts client-submitted prices), clamps quantity to available stock, computes shipping (free over $50, else $5.99), and generates order IDs as `ORD-<base36 timestamp>-<random suffix>` (the random suffix was added after a k6 load test surfaced same-millisecond primary-key collisions under concurrent checkout). Orders and order items are separate tables (`orders`, `order_items`), joined and reshaped into a nested `items[]` array in API responses.
 
 **Routing:** all pages render inside a shared `Layout` (`src/components/Layout.jsx`) via a wrapping `Route` in `src/App.jsx`.
+
+## E2E tests
+
+`e2e/` is a standalone Playwright suite (its own `package.json`, run from inside `e2e/`, not from the repo root):
+
+```
+cd e2e
+npm install && npx playwright install chromium   # one-time
+cp .env.test.example .env.test                   # then set TEST_DATABASE_URL
+npm test                                          # run the suite
+npm run report                                    # open the last HTML report
+```
+
+`TEST_DATABASE_URL` must be a database dedicated to this suite (e.g. a sibling `neondb_test` database on the same Neon endpoint), never the app's real `DATABASE_URL` — `global-setup.ts` refuses to run otherwise because every run truncates `orders`/`order_items`. The suite always runs with a real, visible Chromium window (`headless: false` is fixed in `playwright.config.ts`) and serially (`workers: 1`) against dedicated ports (backend `8811`, frontend `4310`) so it can run alongside `npm run dev` without colliding. See `e2e/README.md` for what each spec file covers and the reusable-vs-app-specific parts of the suite.
+
+## Security tests
+
+`security/` is a standalone SAST + DAST suite (own `package.json`, run
+from inside `security/`, not from the repo root):
+
+```
+cd security
+npm install
+cp .env.test.example .env.test   # or reuse e2e/.env.test's TEST_DATABASE_URL
+npm run scan                     # static (Semgrep, npm audit, secretlint) + dynamic (OWASP Top 10 checks) + report
+```
+
+Same non-negotiable rule as `e2e/`: `TEST_DATABASE_URL` must never be the
+app's real `DATABASE_URL` — `lib/db-safety.mjs` refuses to run otherwise.
+Run this before merging anything that touches auth, data access, or
+externally-facing endpoints. See `security/README.md` for current findings
+(as of the last run: an unauthenticated `GET /api/orders` leaks every
+guest's PII — unused by the frontend, recommended to remove or gate — plus
+missing security headers) and which are accepted design tradeoffs (no
+auth; guest checkout only) versus real bugs.
 
 ## Deployment
 

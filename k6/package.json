@@ -1,0 +1,8 @@
+{
+  "name": "smartbuy-k6",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "load": "node scripts/run-load-test.mjs"
+  }
+}
