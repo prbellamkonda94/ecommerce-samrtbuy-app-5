@@ -33,19 +33,31 @@ function formatOrder(order, items) {
   };
 }
 
+// Guest checkout has no auth/sessions, so this must never return every
+// order in the system (that leaked every guest's PII to any caller -- see
+// security/README.md). Instead it resolves only the order ids the caller
+// already knows, the same trust model as the single-order lookup below;
+// the frontend supplies exactly the ids it stored client-side when placing
+// them (see src/pages/Orders.jsx). No ids -> no orders.
 router.get('/', async (req, res, next) => {
   try {
+    const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
+    const ids = [...new Set(idsParam.split(',').map((id) => id.trim()).filter(Boolean))];
+    if (ids.length === 0) return res.json([]);
+
     const orders = await sql`
       SELECT id, subtotal, shipping_cost AS "shippingCost", total, status,
              placed_at AS "placedAt", shipping_full_name AS "shippingFullName",
              shipping_address AS "shippingAddress", shipping_city AS "shippingCity",
              shipping_zip AS "shippingZip"
       FROM orders
+      WHERE id = ANY(${ids})
       ORDER BY placed_at DESC
     `;
     const items = await sql`
       SELECT order_id AS "orderId", product_id AS "productId", name, price, qty
       FROM order_items
+      WHERE order_id = ANY(${ids})
     `;
     const byOrder = new Map();
     for (const item of items) {

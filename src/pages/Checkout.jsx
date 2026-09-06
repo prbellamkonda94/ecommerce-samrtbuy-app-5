@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { createOrder } from '../api/client';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const emptyForm = {
   fullName: '',
@@ -13,6 +14,10 @@ const emptyForm = {
 
 export default function Checkout() {
   const { items, cartDetails, subtotal, clearCart } = useCart();
+  // Orders has no auth to scope by, so it asks the API for exactly the
+  // order ids this browser has placed (see server/routes/orders.js) --
+  // stored here the same way the cart is.
+  const [, setOrderIds] = useLocalStorage('smartbuy_order_ids', []);
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
@@ -70,6 +75,7 @@ export default function Checkout() {
         },
       });
       orderPlacedRef.current = true;
+      setOrderIds((prev) => [...new Set([...prev, order.id])]);
       clearCart();
       navigate(`/order-confirmation/${order.id}`);
     } catch (err) {

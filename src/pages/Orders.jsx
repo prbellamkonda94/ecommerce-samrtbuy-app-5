@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchOrders } from '../api/client';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export default function Orders() {
+  // No auth to scope "my orders" by, so this page only ever asks the API
+  // for the order ids this browser itself placed (see Checkout.jsx and
+  // server/routes/orders.js) rather than every order in the system.
+  const [orderIds] = useLocalStorage('smartbuy_order_ids', []);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetchOrders()
+    fetchOrders(orderIds)
       .then(setOrders)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [orderIds]);
 
   if (loading) {
     return (

@@ -16,7 +16,8 @@ async function request(path, options) {
 
 export const fetchProducts = () => request('/products');
 export const fetchProduct = (id) => request(`/products/${id}`);
-export const fetchOrders = () => request('/orders');
+export const fetchOrders = (ids = []) =>
+  request(ids.length ? `/orders?ids=${ids.map(encodeURIComponent).join(',')}` : '/orders');
 export const fetchOrder = (id) => request(`/orders/${id}`);
 export const createOrder = (payload) =>
   request('/orders', { method: 'POST', body: JSON.stringify(payload) });

@@ -13,7 +13,13 @@ const distPath = path.join(__dirname, '..', 'dist');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.disable('x-powered-by');
 app.use(express.json());
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  next();
+});
 
 app.use((req, res, next) => {
   const startedAt = process.hrtime.bigint();
