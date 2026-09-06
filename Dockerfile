@@ -15,10 +15,11 @@ ENV NODE_ENV=production
 ENV PORT=3001
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-COPY server ./server
-COPY shared ./shared
-COPY --from=build /app/dist ./dist
+COPY --chown=node:node server ./server
+COPY --chown=node:node shared ./shared
+COPY --chown=node:node --from=build /app/dist ./dist
 
+USER node
 EXPOSE 3001
 # Single-artifact deploy: server/index.js serves both the API and, since
 # dist/ exists in this image, the built frontend from the same process
