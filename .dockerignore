@@ -1,0 +1,26 @@
+node_modules
+dist
+dist-ssr
+npm-debug.log*
+
+.git
+.github
+.claude
+
+.env
+.env.*
+Database connection details.txt
+deploy-prompt-compact.txt
+
+# Standalone test/observability suites -- not part of the runtime image.
+e2e
+security
+k6
+grafana
+training
+docker-compose.otel.yml
+
+*.md
+.vscode
+.idea
+.DS_Store
