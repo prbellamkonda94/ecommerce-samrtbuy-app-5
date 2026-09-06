@@ -1,0 +1,31 @@
+
+# Local, free observability stack: Grafana + Prometheus (metrics) + Tempo
+# (traces) + Loki (logs) + an OTLP collector, bundled into one official
+# Grafana Labs image and pre-wired so traces, logs, and metrics are
+# correlated with each other out of the box.
+#
+# This is entirely opt-in and separate from the app's own docker setup (there
+# isn't one) -- it's only used when you explicitly run:
+#
+#   docker compose -f docker-compose.otel.yml up -d
+#
+# Then set OTEL_ENABLED=true in .env and start the app as usual.
+services:
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: smartbuy-otel-lgtm
+    ports:
+      - '3300:3000'   # Grafana UI -> http://localhost:3300 (host 3000 is taken by Vite/CRA conventions elsewhere)
+      - '4317:4317'   # OTLP gRPC
+      - '4318:4318'   # OTLP HTTP (what server/otel/instrumentation.mjs targets)
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - otel-lgtm-data:/data
+      - ./grafana/provisioning/dashboards/smartbuy.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/smartbuy.yaml:ro
+      - ./grafana/dashboards:/otel-lgtm/dashboards/smartbuy:ro
+    restart: unless-stopped
+
+volumes:
+  otel-lgtm-data:

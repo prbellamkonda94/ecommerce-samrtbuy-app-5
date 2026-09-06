@@ -74,6 +74,91 @@ guest's PII — unused by the frontend, recommended to remove or gate — plus
 missing security headers) and which are accepted design tradeoffs (no
 auth; guest checkout only) versus real bugs.
 
+## Performance tests
+
+`k6/` is a standalone k6 load-test suite (own `package.json`, run from inside
+`k6/`, not from the repo root):
+
+```
+cd k6
+cp .env.k6.example .env.k6   # set TEST_DATABASE_URL (reuse e2e/security's if present)
+CONCURRENT_USERS=<n> TPS_TARGET=<n> PEAK_LOAD=<n> LATENCY_P95_MS=<n> TAT_P95_MS=<n> npm run load
+```
+
+Same non-negotiable rule as `e2e/`/`security/`: `TEST_DATABASE_URL` must
+never be the app's real `DATABASE_URL`. All five NFR target env vars are
+required on every run (no defaults) — `scripts/run-load-test.mjs` seeds the
+test DB, starts an isolated backend on port `8833`, runs a smoke test then
+the full load profile (`tests/smoke.js`, `tests/load-test.js`,
+`tests/browse-products.js`, `tests/order-lifecycle.js`), prints a pass/fail
+scorecard against the given targets, then tears the backend down. This suite
+is what originally surfaced the same-millisecond order-ID collision under
+concurrent checkout (see Orders, above).
+
+## Observability (optional, local-only)
+
+OpenTelemetry instrumentation exists for the API server but is **off by
+default** and has zero effect on the app, `npm run dev`, or the e2e/security
+suites unless explicitly enabled — `server/otel/instrumentation.mjs` checks
+`OTEL_ENABLED` before importing any OTel package, and every script (`dev`,
+`dev:api`, `start`) loads it via `node --import`, which is safe to do
+unconditionally because of that check.
+
+To try it locally (Grafana + Prometheus + Tempo + Loki + an OTLP collector,
+bundled in the official `grafana/otel-lgtm` image, entirely free and
+self-contained):
+
+```
+docker compose -f docker-compose.otel.yml up -d   # one-time per session
+```
+
+Then set in `.env`:
+
+```
+OTEL_ENABLED=true
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+```
+
+and run the app as usual (`npm run dev` / `npm start`). Open
+http://localhost:3300 (Grafana, anonymous admin) and use Explore against the
+Tempo, Loki, or Prometheus datasources — they're pre-wired for correlation
+(a trace's "Logs for this span" jumps to Loki filtered by `trace_id`).
+
+What's instrumented:
+- **Traces**: HTTP requests (via `getNodeAutoInstrumentations`) and every
+  Postgres call. The `sql` tagged-template in `server/db.js` wraps each call
+  in its own span with real `db.statement`/`db.operation` attributes, because
+  the Neon serverless driver talks over fetch/HTTP rather than a normal `pg`
+  socket, so generic HTTP instrumentation alone can't tell a SELECT from an
+  INSERT.
+- **Logs**: `server/otel/logger.js` — structured JSON to stdout always (so
+  `npm run dev` output is unchanged whether OTel is on or off), and to
+  Loki when enabled, auto-stamped with the active span's `trace_id`/`span_id`.
+- **Metrics**: generic HTTP request duration/count (auto-instrumentation),
+  plus business counters in `server/otel/metrics.js` —
+  `smartbuy.orders.placed`, `smartbuy.orders.value` (a histogram of order
+  totals), and `smartbuy.checkout.errors` (labeled by rejection reason:
+  `missing_items`, `missing_shipping`, `invalid_product_id`,
+  `unknown_product`). This app has no real payment gateway, so
+  `checkout.errors` is the closest meaningful proxy to "payment failed" —
+  every case where a checkout attempt didn't turn into an order.
+
+Known gotcha if you extend this: `@opentelemetry/sdk-logs`'s
+`BatchLogRecordProcessor`/`SimpleLogRecordProcessor` constructors take an
+options object (`new BatchLogRecordProcessor({ exporter })`), not the
+exporter positionally — passing it positionally fails silently (no thrown
+error, no diag output at default log levels; only visible with
+`OTEL_LOG_LEVEL=debug`, and even then only as an absence of "items to be
+sent" messages) and no log records reach the collector.
+
 ## Deployment
 
 Deployed on Render as a single Web Service, defined by `render.yaml` (Blueprint): build command `npm install && npm run build`, start command `npm start`. This relies on the single-artifact serving behavior in `server/index.js` (API + static frontend from one Express process, one Node service — no separate static site). `DATABASE_URL` is set directly on the Render service (not in `render.yaml`, which only marks it `sync: false`); production reuses the same Neon database as local dev. Pushing to `main` auto-deploys.
+
+## Training exercise (unrelated to the app)
+
+`training/black-friday-incident/` is a self-contained subagent-delegation
+exercise (log triage, fresh-eyes code review, ship-readiness audit) with its
+own fabricated logs and a deliberately buggy `discount.js`. It does not
+touch, import from, or get imported by the real app — see its own
+`README.md`/`SUBAGENT-GUIDE.md` if asked to work in that folder.

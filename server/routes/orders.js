@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { sql } from '../db.js';
+import { logger } from '../otel/logger.js';
+import { ordersPlacedCounter, orderValueHistogram, checkoutErrorsCounter } from '../otel/metrics.js';
 
 const router = Router();
 
@@ -83,15 +85,18 @@ router.post('/', async (req, res, next) => {
     const { items, shipping } = req.body || {};
 
     if (!Array.isArray(items) || items.length === 0) {
+      checkoutErrorsCounter.add(1, { reason: 'missing_items' });
       return res.status(400).json({ error: 'Order must include at least one item' });
     }
     if (!shipping?.fullName?.trim() || !shipping?.address?.trim() ||
         !shipping?.city?.trim() || !shipping?.zip?.trim()) {
+      checkoutErrorsCounter.add(1, { reason: 'missing_shipping' });
       return res.status(400).json({ error: 'Shipping details are required' });
     }
 
     const productIds = [...new Set(items.map((i) => Number(i.productId)))];
     if (productIds.some((id) => !Number.isInteger(id))) {
+      checkoutErrorsCounter.add(1, { reason: 'invalid_product_id' });
       return res.status(400).json({ error: 'Invalid product id in cart' });
     }
 
@@ -141,9 +146,16 @@ router.post('/', async (req, res, next) => {
       WHERE id = ${orderId}
     `;
 
+    ordersPlacedCounter.add(1);
+    orderValueHistogram.record(total);
+    logger.info('order placed', { orderId, total, itemCount: resolvedItems.length });
+
     res.status(201).json(formatOrder(order, resolvedItems));
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.status) {
+      checkoutErrorsCounter.add(1, { reason: 'unknown_product' });
+      return res.status(err.status).json({ error: err.message });
+    }
     next(err);
   }
 });
