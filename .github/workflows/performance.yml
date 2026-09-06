@@ -28,14 +28,14 @@ jobs:
     name: k6 load test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
       - name: Install root deps
         run: npm ci
-      - uses: grafana/setup-k6-action@v1
+      - uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1.2.1
       - name: Write test env file
         run: echo "TEST_DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}" > k6/.env.k6
       - name: Run k6 load test suite
@@ -49,7 +49,7 @@ jobs:
         run: npm run load
       - name: Upload k6 reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: k6-reports
           path: k6/reports/
