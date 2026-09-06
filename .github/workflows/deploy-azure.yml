@@ -1,0 +1,48 @@
+name: Deploy to Azure Container Apps
+
+# Runs after CI (build/e2e/security) has already gated the merge to main --
+# this workflow only builds+pushes the image and rolls it out. Auth uses a
+# user-assigned managed identity + GitHub OIDC federated credential (see
+# smartbuy-deploy-identity in resource group smartbuy-rg) instead of a
+# stored client secret or the registry's admin password.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_NAME: smartbuyacr
+  ACR_LOGIN_SERVER: smartbuyacr.azurecr.io
+  RESOURCE_GROUP: smartbuy-rg
+  CONTAINER_APP_NAME: smartbuy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Azure login (OIDC, no stored secret)
+        uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push image to ACR
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/smartbuy:${{ github.sha }} -t ${{ env.ACR_LOGIN_SERVER }}/smartbuy:latest .
+          docker push ${{ env.ACR_LOGIN_SERVER }}/smartbuy:${{ github.sha }}
+          docker push ${{ env.ACR_LOGIN_SERVER }}/smartbuy:latest
+
+      - name: Deploy new image to Container App
+        run: |
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_LOGIN_SERVER }}/smartbuy:${{ github.sha }}
