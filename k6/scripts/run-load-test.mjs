@@ -93,11 +93,10 @@ process.on('SIGINT', () => {
 async function waitForHealth() {
   for (let i = 0; i < 30; i++) {
     try {
-      // nosemgrep: typescript.react.security.react-insecure-request.react-insecure-request
-      // -- loopback health check against the backend this same script just
+      // Loopback health check against the backend this same script just
       // spawned (BASE_URL is always http://127.0.0.1:<port>); no data leaves
       // the machine, so plaintext HTTP carries no real risk here.
-      const res = await fetch(`${BASE_URL}/api/health`);
+      const res = await fetch(`${BASE_URL}/api/health`); // nosemgrep: typescript.react.security.react-insecure-request.react-insecure-request
       if (res.ok) return;
     } catch {
       // not up yet
