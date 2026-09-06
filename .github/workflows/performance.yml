@@ -1,0 +1,56 @@
+name: Performance (k6)
+
+# Deliberately not on push/pull_request -- load tests are slower and noisier
+# than the build/e2e/security gates, so they run on demand instead of
+# blocking merges. Trigger from the Actions tab (Run workflow) or via
+# `gh workflow run performance.yml`.
+on:
+  workflow_dispatch:
+    inputs:
+      concurrent_users:
+        description: 'Concurrent users'
+        default: '10'
+      tps_target:
+        description: 'Target transactions/sec'
+        default: '20'
+      peak_load:
+        description: 'Peak load (concurrent users at peak)'
+        default: '40'
+      latency_p95_ms:
+        description: 'p95 latency budget (ms)'
+        default: '500'
+      tat_p95_ms:
+        description: 'p95 turnaround time budget (ms)'
+        default: '2000'
+
+jobs:
+  performance:
+    name: k6 load test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install root deps
+        run: npm ci
+      - uses: grafana/setup-k6-action@v1
+      - name: Write test env file
+        run: echo "TEST_DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}" > k6/.env.k6
+      - name: Run k6 load test suite
+        working-directory: k6
+        env:
+          CONCURRENT_USERS: ${{ inputs.concurrent_users }}
+          TPS_TARGET: ${{ inputs.tps_target }}
+          PEAK_LOAD: ${{ inputs.peak_load }}
+          LATENCY_P95_MS: ${{ inputs.latency_p95_ms }}
+          TAT_P95_MS: ${{ inputs.tat_p95_ms }}
+        run: npm run load
+      - name: Upload k6 reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-reports
+          path: k6/reports/
+          retention-days: 30
