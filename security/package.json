@@ -1,0 +1,14 @@
+{
+  "name": "smartbuy-security",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "scan": "node scripts/run-static-analysis.mjs && node scripts/run-dynamic-tests.mjs && node scripts/generate-report.mjs",
+    "scan:static": "node scripts/run-static-analysis.mjs && node scripts/generate-report.mjs --static-only",
+    "scan:dynamic": "node scripts/run-dynamic-tests.mjs && node scripts/generate-report.mjs --dynamic-only"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "pg": "^8.13.1"
+  }
+}
