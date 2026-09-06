@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { createOrder } from '../api/client';
@@ -12,14 +12,26 @@ const emptyForm = {
 };
 
 export default function Checkout() {
-  const { cartDetails, subtotal, clearCart } = useCart();
+  const { items, cartDetails, subtotal, clearCart } = useCart();
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  // Set once an order is successfully placed, before navigating away.
+  // React Router's route swap doesn't commit in the same render pass as
+  // navigate(), so this component can render one more time with an
+  // already-empty cart before it actually unmounts; without this flag that
+  // extra render would trip the guard below and redirect to /cart,
+  // clobbering the navigation to the confirmation page.
+  const orderPlacedRef = useRef(false);
 
-  if (cartDetails.length === 0) {
+  // Guard on the raw persisted cart (`items`), not `cartDetails` -- the
+  // latter is only populated once ProductsContext's product fetch
+  // resolves, so on a cold load of /checkout with a non-empty cart,
+  // cartDetails is briefly [] and would otherwise bounce a valid cart to
+  // /cart before products finish loading.
+  if (!orderPlacedRef.current && items.length === 0) {
     return <Navigate to="/cart" replace />;
   }
 
@@ -57,6 +69,7 @@ export default function Checkout() {
           zip: form.zip,
         },
       });
+      orderPlacedRef.current = true;
       clearCart();
       navigate(`/order-confirmation/${order.id}`);
     } catch (err) {
